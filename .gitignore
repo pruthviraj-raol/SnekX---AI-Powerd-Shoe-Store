@@ -11,6 +11,11 @@ node_modules
 dist
 dist-ssr
 *.local
+.vercel/
+.render/
+coverage/
+.cache/
+*.tsbuildinfo
 
 # Editor directories and files
 .vscode/*
@@ -25,16 +30,29 @@ dist-ssr
 
 # Python / AI
 .venv/
+venv/
+env/
 __pycache__/
+.pytest_cache/
+.mypy_cache/
 *.pyc
+*.pyo
 
 # Environment variables
 .env
-git rm -r --cached ai-service/.venv
+.env.*
+!.env.example
+!.env.production.example
+
+# Runtime uploads
+backend/uploads/*
+!backend/uploads/.gitkeep
+
 # Large model files
 *.pt
 *.pth
 *.onnx
+*.safetensors
 
 # OS / misc
 Thumbs.db
