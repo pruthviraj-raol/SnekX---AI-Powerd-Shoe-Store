@@ -5,10 +5,10 @@ const connectDB = async () => {
     return mongoose.connection;
   }
 
-  const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+  const mongoUri = process.env.MONGODB_URI;
 
   if (!mongoUri) {
-    throw new Error("MongoDB connection string is missing. Set MONGODB_URI in your .env file.");
+    throw new Error("MongoDB Atlas connection string is missing. Set MONGODB_URI in your environment.");
   }
 
   const connection = await mongoose.connect(mongoUri);

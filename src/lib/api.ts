@@ -18,7 +18,7 @@ type ApiRequestOptions = Omit<RequestInit, "body" | "headers"> & {
   token?: string | null;
 };
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+const API_BASE_URL = ((import.meta.env.VITE_API_URL as string | undefined) || "").trim().replace(/\/$/, "");
 
 export const resolveApiUrl = (path: string) => {
   if (/^https?:\/\//.test(path)) {

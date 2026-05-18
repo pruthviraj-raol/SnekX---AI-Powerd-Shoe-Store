@@ -6,16 +6,9 @@ import { componentTagger } from "lovable-tagger";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const apiProxyTarget = env.VITE_API_PROXY_TARGET || "http://localhost:5000";
-
-  return {
-    server: {
-      host: "::",
-      port: 8080,
-      hmr: {
-        overlay: false,
-      },
-      proxy: {
+  const apiProxyTarget = (env.VITE_API_PROXY_TARGET || "").trim().replace(/\/$/, "");
+  const devProxy = apiProxyTarget
+    ? {
         "/api": {
           target: apiProxyTarget,
           changeOrigin: true,
@@ -24,7 +17,17 @@ export default defineConfig(({ mode }) => {
           target: apiProxyTarget,
           changeOrigin: true,
         },
+      }
+    : undefined;
+
+  return {
+    server: {
+      host: "::",
+      port: 8080,
+      hmr: {
+        overlay: false,
       },
+      proxy: devProxy,
     },
     plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
     resolve: {

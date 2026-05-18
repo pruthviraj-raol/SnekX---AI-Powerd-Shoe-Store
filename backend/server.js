@@ -3,6 +3,8 @@ const path = require("path");
 const cors = require("cors");
 const dotenv = require("dotenv");
 
+dotenv.config({ path: path.join(__dirname, ".env") });
+
 const connectDB = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
 const productRoutes = require("./routes/productRoutes");
@@ -16,24 +18,51 @@ const contactRoutes = require("./routes/contactRoutes");
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 const { ensureDefaultAdmin } = require("./services/bootstrapService");
 
-dotenv.config();
-
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
+const PRODUCTION_CLIENT_URL = "https://snek-x-ai-powerd-shoe-store.vercel.app";
+const isProduction = process.env.NODE_ENV === "production";
 let serverInstance = null;
 
-const allowedOrigins = process.env.CLIENT_URL
-  ? process.env.CLIENT_URL.split(",").map((origin) => origin.trim())
-  : true;
+const parseOrigins = (value = "") =>
+  value
+    .split(",")
+    .map((origin) => origin.trim().replace(/\/$/, ""))
+    .filter(Boolean);
+
+const configuredOrigins = parseOrigins(
+  process.env.CLIENT_URL || process.env.CLIENT_ORIGINS || (isProduction ? PRODUCTION_CLIENT_URL : "")
+);
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) {
+    return true;
+  }
+
+  const normalizedOrigin = origin.replace(/\/$/, "");
+
+  if (configuredOrigins.includes(normalizedOrigin)) {
+    return true;
+  }
+
+  return !isProduction && configuredOrigins.length === 0;
+};
+
+app.disable("x-powered-by");
+app.set("trust proxy", 1);
 
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      callback(null, isAllowedOrigin(origin));
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.get("/api/health", (_req, res) => {

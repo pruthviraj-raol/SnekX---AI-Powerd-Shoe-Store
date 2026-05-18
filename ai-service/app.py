@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
@@ -5,9 +7,14 @@ from model.chatbot_model import ChatbotIntentService
 from model.image_model import OutfitPredictor
 
 
+def parse_csv_env(name):
+    return [value.strip().rstrip("/") for value in os.getenv(name, "").split(",") if value.strip()]
+
+
 app = Flask(__name__)
-CORS(app)
-app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+cors_origins = parse_csv_env("AI_SERVICE_CORS_ORIGINS") or parse_csv_env("CLIENT_URL")
+CORS(app, origins=cors_origins or [])
+app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_UPLOAD_MB", "10")) * 1024 * 1024
 
 chatbot_service = ChatbotIntentService()
 outfit_predictor = OutfitPredictor()
@@ -78,4 +85,6 @@ def predict_outfit():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000, debug=True)
+    port = int(os.getenv("PORT", "8000"))
+    debug = os.getenv("FLASK_DEBUG", "false").lower() == "true"
+    app.run(host="0.0.0.0", port=port, debug=debug)

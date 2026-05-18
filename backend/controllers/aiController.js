@@ -13,11 +13,17 @@ const {
   buildChatbotReply,
 } = require("../services/aiService");
 
-const normalizeAiServiceUrl = (value = "http://127.0.0.1:8000") =>
-  String(value).trim().replace("localhost", "127.0.0.1").replace(/\/$/, "");
+const normalizeAiServiceUrl = (value = "") => String(value).trim().replace(/\/$/, "");
 
-const AI_SERVICE_URL = normalizeAiServiceUrl(process.env.AI_SERVICE_URL || "http://127.0.0.1:8000");
-const PYTHON_OUTFIT_PREDICTION_URL = "http://127.0.0.1:8000/predict-outfit";
+const getAiServiceUrl = (pathname) => {
+  const aiServiceUrl = normalizeAiServiceUrl(process.env.AI_SERVICE_URL);
+
+  if (!aiServiceUrl) {
+    throw new Error("AI_SERVICE_URL is not configured.");
+  }
+
+  return `${aiServiceUrl}${pathname}`;
+};
 const DEFAULT_PRODUCT_CHAT_FALLBACK = "I couldn't reach the AI service, but here are some shoes you may like.";
 const DEFAULT_GENERAL_CHAT_FALLBACK =
   "I couldn't reach the AI service just now, but I'm still here to help with shoe suggestions or order tracking.";
@@ -1511,7 +1517,7 @@ const logPythonServiceError = (label, error) => {
 
 const fetchPythonChatResponse = async (message) => {
   const { data } = await axios.post(
-    `${AI_SERVICE_URL}/chat`,
+    getAiServiceUrl("/chat"),
     { message },
     {
       timeout: 8000,
@@ -1543,7 +1549,7 @@ const fetchPythonOutfitPrediction = async (file) => {
 
   try {
     console.log("Calling Python API...");
-    const response = await axios.post(PYTHON_OUTFIT_PREDICTION_URL, form, axiosConfig);
+    const response = await axios.post(getAiServiceUrl("/predict-outfit"), form, axiosConfig);
     console.log("Python response:", response.data);
 
     if (!response.data?.style || !response.data?.color || !response.data?.category) {
