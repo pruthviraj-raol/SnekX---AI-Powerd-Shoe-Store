@@ -1,0 +1,52 @@
+services:
+  - type: web
+    name: snekx-backend
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "20"
+      - key: CLIENT_URL
+        value: https://snek-x-ai-powerd-shoe-store.vercel.app
+      - key: AI_SERVICE_URL
+        value: https://snekx-ai-service.onrender.com
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: DEFAULT_ADMIN_EMAIL
+        sync: false
+      - key: DEFAULT_ADMIN_PASSWORD
+        sync: false
+      - key: DEFAULT_ADMIN_NAME
+        value: SnekX Admin
+
+  - type: web
+    name: snekx-ai-service
+    runtime: python
+    rootDir: ai-service
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 180
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: FLASK_ENV
+        value: production
+      - key: FLASK_DEBUG
+        value: "false"
+      - key: MAX_UPLOAD_MB
+        value: "10"
+      - key: CLIENT_URL
+        value: https://snek-x-ai-powerd-shoe-store.vercel.app
+      - key: AI_SERVICE_CORS_ORIGINS
+        value: https://snek-x-ai-powerd-shoe-store.vercel.app

@@ -1,87 +1,38 @@
-# Welcome to your Lovable project
+# SnekX - AI Powered Shoe Store
 
-## Project info
+SnekX is a MERN ecommerce app with a Vite React frontend, an Express backend, MongoDB Atlas persistence, and a Python Flask AI service for chatbot and outfit recommendations.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Project Structure
 
-## How can I edit this code?
+- `src/` - Vite React frontend.
+- `backend/` - Node.js and Express API.
+- `ai-service/` - Python Flask AI service.
+- `public/` - frontend static assets.
 
-There are several ways of editing your application.
+## Local Development
 
-**Use Lovable**
+1. Install frontend dependencies with `npm install`.
+2. Install backend dependencies with `npm --prefix backend install`.
+3. Install AI service dependencies with `pip install -r ai-service/requirements.txt`.
+4. Copy `.env.example`, `backend/.env.example`, and `ai-service/.env.example` to local `.env` files.
+5. Replace placeholders with local or production service values.
+6. Start frontend and backend together with `npm run dev:full`.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Environment Variables
 
-Changes made via Lovable will be committed automatically to this repo.
+- Frontend uses `VITE_API_URL` for the deployed backend and `VITE_API_PROXY_TARGET` only for local Vite proxying.
+- Backend requires `MONGODB_URI`, `JWT_SECRET`, `CLIENT_URL`, and `AI_SERVICE_URL`.
+- AI service uses `PORT`, `MAX_UPLOAD_MB`, and `AI_SERVICE_CORS_ORIGINS`.
 
-**Use your preferred IDE**
+## Deployment
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+See [DEPLOYMENT.md](DEPLOYMENT.md) for Vercel frontend, Render backend, and Render AI service instructions.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Stack
 
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
+- Vite + React + TypeScript
 - shadcn-ui
 - Tailwind CSS
-
-## Running frontend and backend together
-
-The frontend now proxies `/api` and `/uploads` requests to the Express backend during local development.
-
-1. Install frontend dependencies with `npm install`
-2. Install backend dependencies with `npm --prefix backend install`
-3. Copy [backend/.env.example](C:\Users\pruthviraj\OneDrive\Desktop\FRONTEND\FRONTEND\backend\.env.example) to `backend/.env`
-4. Fill in at least `MONGODB_URI` and `JWT_SECRET`
-5. Start both apps with `npm run dev:full`
-
-Frontend runs on `http://localhost:8080` and backend runs on `http://localhost:5000`.
-
-You can override the backend target in development with `VITE_API_PROXY_TARGET`. For deployed builds, set `VITE_API_URL` to your backend base URL.
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- Node.js + Express
+- MongoDB Atlas
+- Flask + PyTorch/Transformers
