@@ -55,16 +55,22 @@ The backend requires `MONGODB_URI` and `JWT_SECRET`. Do not commit real values.
 1. Create a Render Web Service from the `ai-service/` folder, or apply `render.yaml` as a Blueprint.
 2. Use these settings:
    - Runtime: Python
-   - Build command: `pip install -r requirements.txt`
+   - Root directory: `ai-service`
+   - Python version: `3.11`
+   - Build command: `python --version && python -m pip install --upgrade pip setuptools wheel && python -m pip install -r requirements.txt`
    - Start command: `gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 180`
    - Health check path: `/health`
 3. Add these environment variables:
+   - `PYTHON_VERSION=3.11.9`
    - `FLASK_ENV=production`
    - `FLASK_DEBUG=false`
    - `MAX_UPLOAD_MB=10`
    - `CLIENT_URL=https://snek-x-ai-powerd-shoe-store.vercel.app`
    - `AI_SERVICE_CORS_ORIGINS=https://snek-x-ai-powerd-shoe-store.vercel.app`
-4. Deploy and confirm `/health` returns `status: ok`.
+4. Deploy and confirm the build logs print `Python 3.11.x` before dependency installation.
+5. Confirm `/health` returns `status: ok`.
+
+The AI service includes `ai-service/.python-version` with `3.11` so Render does not fall back to its default Python `3.14.3`. `ai-service/runtime.txt` is kept in `python-3.11.9` format for buildpack-style compatibility, but Render's supported pin is `PYTHON_VERSION` or `.python-version`.
 
 The backend talks to the AI service through `AI_SERVICE_URL`; the frontend should continue using backend `/api/ai/*` routes.
 
@@ -72,7 +78,7 @@ The backend talks to the AI service through `AI_SERVICE_URL`; the frontend shoul
 
 1. Install frontend dependencies with `npm install`.
 2. Install backend dependencies with `npm --prefix backend install`.
-3. Install AI service dependencies in a Python virtual environment with `pip install -r ai-service/requirements.txt`.
+3. Install AI service dependencies in a Python 3.11 virtual environment with `pip install -r ai-service/requirements.txt`.
 4. Copy `.env.example`, `backend/.env.example`, and `ai-service/.env.example` to local `.env` files.
 5. Replace production values with local service URLs and local secrets.
 6. Start the frontend and backend with `npm run dev:full`.
