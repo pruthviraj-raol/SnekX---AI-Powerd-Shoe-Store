@@ -1,78 +1,122 @@
+"""Outfit prediction via CLIP style classification and color detection.
+
+All heavy models (CLIP) are lazy-loaded on first use to keep the Flask
+process under Render free-tier 512 MB RAM limit.
+
+Key optimizations:
+- CLIP loaded in float16 (~300 MB vs ~600 MB in float32)
+- low_cpu_mem_usage=True prevents peak-memory spikes during loading
+- YOLO removed; center-crop fallback used for person detection
+- Aggressive gc.collect() after inference
+"""
+
+import gc
+import threading
 from io import BytesIO
+
+import cv2
 import numpy as np
 from PIL import Image
-import cv2
-
-# ML
-from transformers import CLIPProcessor, CLIPModel
-import torch
 from sklearn.cluster import KMeans
-from ultralytics import YOLO
 
-# -------------------------------
-# LOAD MODELS
-# -------------------------------
-device = "cuda" if torch.cuda.is_available() else "cpu"
+# ── Lazy-loaded globals ──
+_clip_model = None
+_clip_processor = None
+_load_lock = threading.Lock()
 
-clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
-clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-
-yolo_model = YOLO("yolov8n.pt")
-
-# -------------------------------
-# LABELS (IMPORTANT)
-# -------------------------------
+# ── Style labels for CLIP zero-shot classification ──
 STYLE_LABELS = [
     "formal business suit outfit",
     "casual t shirt jeans outfit",
     "sports gym workout outfit",
     "indian ethnic kurta sherwani outfit",
     "streetwear hoodie outfit",
-    "party wear stylish outfit"
+    "party wear stylish outfit",
 ]
 
+
+def _get_clip():
+    """Return (model, processor), loading on first call."""
+    global _clip_model, _clip_processor
+
+    if _clip_model is not None:
+        return _clip_model, _clip_processor
+
+    with _load_lock:
+        if _clip_model is not None:
+            return _clip_model, _clip_processor
+
+        import torch
+        from transformers import CLIPModel, CLIPProcessor
+
+        torch.set_num_threads(1)
+
+        print("[ai-service] Loading CLIP model (first request)...")
+
+        _clip_processor = CLIPProcessor.from_pretrained(
+            "openai/clip-vit-base-patch32",
+        )
+        _clip_model = CLIPModel.from_pretrained(
+            "openai/clip-vit-base-patch32",
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True,
+        )
+        _clip_model.eval()
+
+        gc.collect()
+        print("[ai-service] CLIP model loaded successfully.")
+
+        return _clip_model, _clip_processor
+
+
 # -------------------------------
-# PERSON DETECTION
+# PERSON DETECTION (center-crop)
 # -------------------------------
 def extract_person_region(image_pil):
+    """Extract the likely clothing region via center crop.
+
+    Replaces YOLO person detection to avoid ultralytics memory overhead.
+    """
     image = np.array(image_pil)
     image_bgr = image[:, :, ::-1]
 
-    try:
-        results = yolo_model(image_bgr)
+    h, w = image_bgr.shape[:2]
+    return image_bgr[int(h * 0.15):int(h * 0.85), int(w * 0.2):int(w * 0.8)]
 
-        for r in results:
-            for box in r.boxes:
-                cls = int(box.cls[0])
-                if cls == 0:  # person
-                    x1, y1, x2, y2 = map(int, box.xyxy[0])
-                    person = image_bgr[y1:y2, x1:x2]
-
-                    if person.size > 0:
-                        return person
-    except:
-        pass
-
-    # fallback center crop
-    h, w, _ = image_bgr.shape
-    return image_bgr[int(h*0.3):int(h*0.8), int(w*0.3):int(w*0.7)]
 
 # -------------------------------
 # CLIP STYLE
 # -------------------------------
 def classify_style(image_pil):
-    inputs = clip_processor(text=STYLE_LABELS, images=image_pil, return_tensors="pt", padding=True).to(device)
+    import torch
 
-    with torch.no_grad():
-        outputs = clip_model(**inputs)
+    model, processor = _get_clip()
 
-    probs = outputs.logits_per_image.softmax(dim=1)[0].cpu().numpy()
-    idx = np.argmax(probs)
+    inputs = processor(
+        text=STYLE_LABELS,
+        images=image_pil,
+        return_tensors="pt",
+        padding=True,
+    )
+
+    # Cast pixel values to float16 to match model dtype
+    if "pixel_values" in inputs:
+        inputs["pixel_values"] = inputs["pixel_values"].to(torch.float16)
+
+    with torch.inference_mode():
+        outputs = model(**inputs)
+
+    probs = outputs.logits_per_image.softmax(dim=1)[0].float().cpu().numpy()
+    idx = int(np.argmax(probs))
+
+    del inputs, outputs
+    gc.collect()
 
     return STYLE_LABELS[idx]
 
+
 # -------------------------------
-# COLOR DETECTION (FIXED)
+# COLOR DETECTION
 # -------------------------------
 def detect_color(image_pil):
     person = extract_person_region(image_pil)
@@ -106,6 +150,7 @@ def detect_color(image_pil):
     else:
         return "grey"
 
+
 # -------------------------------
 # CATEGORY MAPPING
 # -------------------------------
@@ -130,6 +175,7 @@ def map_category(style, filename):
     else:
         return "casual"
 
+
 # -------------------------------
 # MAIN CLASS
 # -------------------------------
@@ -153,5 +199,5 @@ class OutfitPredictor:
             "style": style,
             "color": color,
             "category": category,
-            "clothingType": style
+            "clothingType": style,
         }

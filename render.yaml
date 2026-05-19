@@ -35,7 +35,7 @@ services:
     rootDir: ai-service
     plan: free
     buildCommand: python --version && python -m pip install --upgrade pip setuptools wheel && python -m pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 180
+    startCommand: gunicorn app:app --config gunicorn.conf.py
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
@@ -50,3 +50,15 @@ services:
         value: https://snek-x-ai-powerd-shoe-store.vercel.app
       - key: AI_SERVICE_CORS_ORIGINS
         value: https://snek-x-ai-powerd-shoe-store.vercel.app
+      - key: MALLOC_ARENA_MAX
+        value: "2"
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: MKL_NUM_THREADS
+        value: "1"
+      - key: OPENBLAS_NUM_THREADS
+        value: "1"
+      - key: MPLBACKEND
+        value: Agg
+      - key: TOKENIZERS_PARALLELISM
+        value: "false"
