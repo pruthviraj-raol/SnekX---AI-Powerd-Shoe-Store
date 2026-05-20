@@ -19,13 +19,41 @@ type ApiRequestOptions = Omit<RequestInit, "body" | "headers"> & {
 };
 
 const API_BASE_URL = ((import.meta.env.VITE_API_URL as string | undefined) || "").trim().replace(/\/$/, "");
+const API_ROUTE_ROOTS = new Set([
+  "address",
+  "admin",
+  "ai",
+  "auth",
+  "cart",
+  "contact",
+  "orders",
+  "products",
+  "reviews",
+  "wishlist",
+]);
+
+const normalizeApiPath = (path: string) => {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  if (normalizedPath === "/api" || normalizedPath.startsWith("/api/")) {
+    return normalizedPath;
+  }
+
+  const routeRoot = normalizedPath.slice(1).split(/[/?#]/, 1)[0];
+
+  if (API_ROUTE_ROOTS.has(routeRoot)) {
+    return `/api${normalizedPath}`;
+  }
+
+  return normalizedPath;
+};
 
 export const resolveApiUrl = (path: string) => {
   if (/^https?:\/\//.test(path)) {
     return path;
   }
 
-  return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+  return `${API_BASE_URL}${normalizeApiPath(path)}`;
 };
 
 const isJsonPayload = (body: ApiRequestOptions["body"]) => {
