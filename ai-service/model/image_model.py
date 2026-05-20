@@ -12,6 +12,8 @@ Key optimizations:
 
 import gc
 import threading
+import time
+import traceback
 from io import BytesIO
 
 import cv2
@@ -46,27 +48,55 @@ def _get_clip():
         if _clip_model is not None:
             return _clip_model, _clip_processor
 
-        import torch
-        from transformers import CLIPModel, CLIPProcessor
+        started_at = time.perf_counter()
+        print("[ai-service] CLIP model load start.", flush=True)
 
-        torch.set_num_threads(1)
+        try:
+            import torch
+            from transformers import CLIPModel, CLIPProcessor
 
-        print("[ai-service] Loading CLIP model (first request)...")
+            torch.set_num_threads(1)
 
-        _clip_processor = CLIPProcessor.from_pretrained(
-            "openai/clip-vit-base-patch32",
-        )
-        _clip_model = CLIPModel.from_pretrained(
-            "openai/clip-vit-base-patch32",
-            torch_dtype=torch.float16,
-            low_cpu_mem_usage=True,
-        )
-        _clip_model.eval()
+            _clip_processor = CLIPProcessor.from_pretrained(
+                "openai/clip-vit-base-patch32",
+            )
+            _clip_model = CLIPModel.from_pretrained(
+                "openai/clip-vit-base-patch32",
+                torch_dtype=torch.float16,
+                low_cpu_mem_usage=True,
+            )
+            _clip_model.eval()
 
-        gc.collect()
-        print("[ai-service] CLIP model loaded successfully.")
+            gc.collect()
+            duration_ms = (time.perf_counter() - started_at) * 1000
+            print(f"[ai-service] CLIP model load success in {duration_ms:.2f} ms.", flush=True)
+        except MemoryError as exc:
+            duration_ms = (time.perf_counter() - started_at) * 1000
+            print(f"[ai-service] CLIP model load memory failure after {duration_ms:.2f} ms: {exc}", flush=True)
+            traceback.print_exc()
+            raise
+        except TimeoutError as exc:
+            duration_ms = (time.perf_counter() - started_at) * 1000
+            print(f"[ai-service] CLIP model load timeout after {duration_ms:.2f} ms: {exc}", flush=True)
+            traceback.print_exc()
+            raise
+        except Exception as exc:
+            duration_ms = (time.perf_counter() - started_at) * 1000
+            message = str(exc).lower()
+            if any(term in message for term in ["memory", "out of memory", "oom", "allocation"]):
+                print(f"[ai-service] CLIP model load memory-related failure after {duration_ms:.2f} ms: {exc}", flush=True)
+            elif any(term in message for term in ["timeout", "timed out", "read timed out"]):
+                print(f"[ai-service] CLIP model load timeout-related failure after {duration_ms:.2f} ms: {exc}", flush=True)
+            else:
+                print(f"[ai-service] CLIP model load failed after {duration_ms:.2f} ms: {exc}", flush=True)
+            traceback.print_exc()
+            raise
 
         return _clip_model, _clip_processor
+
+
+def is_clip_loaded():
+    return _clip_model is not None and _clip_processor is not None
 
 
 # -------------------------------
@@ -90,29 +120,56 @@ def extract_person_region(image_pil):
 def classify_style(image_pil):
     import torch
 
+    started_at = time.perf_counter()
+    print("[ai-service] CLIP inference start.", flush=True)
     model, processor = _get_clip()
 
-    inputs = processor(
-        text=STYLE_LABELS,
-        images=image_pil,
-        return_tensors="pt",
-        padding=True,
-    )
+    try:
+        inputs = processor(
+            text=STYLE_LABELS,
+            images=image_pil,
+            return_tensors="pt",
+            padding=True,
+        )
 
-    # Cast pixel values to float16 to match model dtype
-    if "pixel_values" in inputs:
-        inputs["pixel_values"] = inputs["pixel_values"].to(torch.float16)
+        # Cast pixel values to float16 to match model dtype.
+        if "pixel_values" in inputs:
+            inputs["pixel_values"] = inputs["pixel_values"].to(torch.float16)
 
-    with torch.inference_mode():
-        outputs = model(**inputs)
+        with torch.inference_mode():
+            outputs = model(**inputs)
 
-    probs = outputs.logits_per_image.softmax(dim=1)[0].float().cpu().numpy()
-    idx = int(np.argmax(probs))
+        probs = outputs.logits_per_image.softmax(dim=1)[0].float().cpu().numpy()
+        idx = int(np.argmax(probs))
+        style = STYLE_LABELS[idx]
 
-    del inputs, outputs
-    gc.collect()
+        del inputs, outputs
+        gc.collect()
 
-    return STYLE_LABELS[idx]
+        duration_ms = (time.perf_counter() - started_at) * 1000
+        print(f"[ai-service] CLIP inference success in {duration_ms:.2f} ms. style={style}", flush=True)
+        return style
+    except MemoryError as exc:
+        duration_ms = (time.perf_counter() - started_at) * 1000
+        print(f"[ai-service] CLIP inference memory failure after {duration_ms:.2f} ms: {exc}", flush=True)
+        traceback.print_exc()
+        raise
+    except TimeoutError as exc:
+        duration_ms = (time.perf_counter() - started_at) * 1000
+        print(f"[ai-service] CLIP inference timeout after {duration_ms:.2f} ms: {exc}", flush=True)
+        traceback.print_exc()
+        raise
+    except Exception as exc:
+        duration_ms = (time.perf_counter() - started_at) * 1000
+        message = str(exc).lower()
+        if any(term in message for term in ["memory", "out of memory", "oom", "allocation"]):
+            print(f"[ai-service] CLIP inference memory-related failure after {duration_ms:.2f} ms: {exc}", flush=True)
+        elif any(term in message for term in ["timeout", "timed out", "read timed out"]):
+            print(f"[ai-service] CLIP inference timeout-related failure after {duration_ms:.2f} ms: {exc}", flush=True)
+        else:
+            print(f"[ai-service] CLIP inference failed after {duration_ms:.2f} ms: {exc}", flush=True)
+        traceback.print_exc()
+        raise
 
 
 # -------------------------------
@@ -182,22 +239,32 @@ def map_category(style, filename):
 class OutfitPredictor:
 
     def predict_from_bytes(self, image_bytes, filename=""):
-        image = Image.open(BytesIO(image_bytes)).convert("RGB")
+        started_at = time.perf_counter()
+        print(f"[ai-service] Outfit prediction start. filename={filename}", flush=True)
 
-        print("===== NEW REQUEST =====")
+        try:
+            image = Image.open(BytesIO(image_bytes)).convert("RGB")
 
-        style = classify_style(image)
-        print("STYLE:", style)
+            style = classify_style(image)
+            print("STYLE:", style, flush=True)
 
-        color = detect_color(image)
-        print("COLOR:", color)
+            color = detect_color(image)
+            print("COLOR:", color, flush=True)
 
-        category = map_category(style, filename)
-        print("CATEGORY:", category)
+            category = map_category(style, filename)
+            print("CATEGORY:", category, flush=True)
 
-        return {
-            "style": style,
-            "color": color,
-            "category": category,
-            "clothingType": style,
-        }
+            duration_ms = (time.perf_counter() - started_at) * 1000
+            print(f"[ai-service] Outfit prediction success in {duration_ms:.2f} ms.", flush=True)
+
+            return {
+                "style": style,
+                "color": color,
+                "category": category,
+                "clothingType": style,
+            }
+        except Exception:
+            duration_ms = (time.perf_counter() - started_at) * 1000
+            print(f"[ai-service] Outfit prediction failed after {duration_ms:.2f} ms.", flush=True)
+            traceback.print_exc()
+            raise

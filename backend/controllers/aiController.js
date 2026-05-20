@@ -1529,9 +1529,28 @@ const saveChatQuery = (userId, message, response) =>
 
 const logPythonServiceError = (label, error) => {
   console.error(`${label} failed: ${error?.message || error}`);
-  console.log(`${label} response data:`, error?.response?.data);
-  console.log(`${label} status:`, error?.response?.status);
-  console.log(`${label} code:`, error?.code);
+  console.error(error);
+  console.error(`${label} stack:`, error?.stack);
+  console.error(`${label} response data:`, error?.response?.data);
+  console.error(`${label} status:`, error?.response?.status);
+  console.error(`${label} code:`, error?.code);
+
+  if (["ECONNABORTED", "ETIMEDOUT", "ESOCKETTIMEDOUT"].includes(error?.code)) {
+    console.error(`${label} timeout failure detected.`);
+  }
+
+  const diagnosticText = [
+    error?.message,
+    error?.stack,
+    typeof error?.response?.data === "string" ? error.response.data : JSON.stringify(error?.response?.data || {}),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (/\b(memory|out of memory|oom|allocation)\b/.test(diagnosticText)) {
+    console.error(`${label} memory-related failure detected.`);
+  }
 };
 
 const fetchPythonChatResponse = async (message) => {
@@ -1569,7 +1588,9 @@ const fetchPythonOutfitPrediction = async (file) => {
 
   try {
     console.log("Calling Python API...");
+    const startedAt = Date.now();
     const response = await axios.post(getAiServiceUrl("/predict-outfit"), form, axiosConfig);
+    console.log(`Python outfit service success in ${Date.now() - startedAt} ms.`);
     console.log("Python response:", response.data);
 
     if (!response.data?.style || !response.data?.color || !response.data?.category) {
