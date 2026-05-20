@@ -1,4 +1,5 @@
 const express = require("express");
+const fs = require("fs");
 const path = require("path");
 const cors = require("cors");
 const dotenv = require("dotenv");
@@ -17,12 +18,22 @@ const adminRoutes = require("./routes/adminRoutes");
 const contactRoutes = require("./routes/contactRoutes");
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 const { ensureDefaultAdmin } = require("./services/bootstrapService");
+const { uploadsDir } = require("./services/uploadPathService");
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
 const PRODUCTION_CLIENT_URL = "https://snek-x-ai-powerd-shoe-store.vercel.app";
 const isProduction = process.env.NODE_ENV === "production";
 let serverInstance = null;
+const IMAGE_CONTENT_TYPES = {
+  ".avif": "image/avif",
+  ".gif": "image/gif",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp",
+};
 
 const parseOrigins = (value = "") =>
   value
@@ -48,6 +59,64 @@ const isAllowedOrigin = (origin) => {
   return !isProduction && configuredOrigins.length === 0;
 };
 
+const ensureUploadsDir = () => {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+};
+
+const inferImageContentType = (filePath) => {
+  const extensionContentType = IMAGE_CONTENT_TYPES[path.extname(filePath).toLowerCase()];
+
+  if (extensionContentType) {
+    return extensionContentType;
+  }
+
+  const signature = Buffer.alloc(16);
+  let bytesRead = 0;
+
+  try {
+    const fileHandle = fs.openSync(filePath, "r");
+    bytesRead = fs.readSync(fileHandle, signature, 0, signature.length, 0);
+    fs.closeSync(fileHandle);
+  } catch (_error) {
+    return "";
+  }
+
+  if (bytesRead >= 3 && signature[0] === 0xff && signature[1] === 0xd8 && signature[2] === 0xff) {
+    return "image/jpeg";
+  }
+
+  if (bytesRead >= 8 && signature.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return "image/png";
+  }
+
+  if (bytesRead >= 6 && (signature.subarray(0, 6).toString("ascii") === "GIF87a" || signature.subarray(0, 6).toString("ascii") === "GIF89a")) {
+    return "image/gif";
+  }
+
+  if (bytesRead >= 12 && signature.subarray(0, 4).toString("ascii") === "RIFF" && signature.subarray(8, 12).toString("ascii") === "WEBP") {
+    return "image/webp";
+  }
+
+  if (bytesRead >= 12 && signature.subarray(4, 12).toString("ascii").includes("ftypavif")) {
+    return "image/avif";
+  }
+
+  return "";
+};
+
+const setUploadHeaders = (res, filePath) => {
+  const contentType = inferImageContentType(filePath);
+
+  if (contentType) {
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+  }
+};
+
+ensureUploadsDir();
+
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
 
@@ -63,7 +132,7 @@ app.use(
 );
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/uploads", express.static(uploadsDir, { setHeaders: setUploadHeaders }));
 
 app.get("/api/health", (_req, res) => {
   res.json({

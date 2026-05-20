@@ -56,7 +56,29 @@ const parseBooleanField = (value, fallback = false) => {
   return Boolean(value);
 };
 
-const toImageUrl = (_req, filePath) => {
+const getPublicOrigin = (req) => {
+  const configuredOrigin = String(process.env.BACKEND_PUBLIC_URL || process.env.PUBLIC_BACKEND_URL || "")
+    .trim()
+    .replace(/\/$/, "");
+
+  if (configuredOrigin) {
+    return configuredOrigin;
+  }
+
+  if (!req?.get) {
+    return "";
+  }
+
+  const host = req.get("host");
+
+  if (!host) {
+    return "";
+  }
+
+  return `${req.protocol || "http"}://${host}`;
+};
+
+const toImageUrl = (req, filePath) => {
   if (!filePath) {
     return "";
   }
@@ -66,15 +88,18 @@ const toImageUrl = (_req, filePath) => {
     return normalized;
   }
 
+  const publicOrigin = getPublicOrigin(req);
+  const withPublicOrigin = (uploadPath) => (publicOrigin ? `${publicOrigin}${uploadPath}` : uploadPath);
+
   if (normalized.startsWith("/uploads/")) {
-    return normalized;
+    return withPublicOrigin(normalized);
   }
 
   if (normalized.includes("/uploads/")) {
-    return normalized.slice(normalized.indexOf("/uploads/"));
+    return withPublicOrigin(normalized.slice(normalized.indexOf("/uploads/")));
   }
 
-  return `/uploads/${normalized.split("/").pop()}`;
+  return withPublicOrigin(`/uploads/${normalized.split("/").pop()}`);
 };
 
 const getUploadedImagePaths = (req) => {

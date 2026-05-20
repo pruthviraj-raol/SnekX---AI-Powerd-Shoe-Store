@@ -4,8 +4,8 @@ const crypto = require("crypto");
 const axios = require("axios");
 
 const { toImageUrl } = require("./requestParserService");
+const { uploadsDir } = require("./uploadPathService");
 
-const uploadsDir = path.join(__dirname, "..", "uploads");
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const IMAGE_CONTENT_TYPE_TO_EXTENSION = {
   "image/jpeg": "jpg",
@@ -197,7 +197,7 @@ const persistRemoteImage = async (source, depth = 0) => {
     const filename = `${Date.now()}-${filenameBase}-${crypto.randomUUID()}.${extension}`;
 
     await fs.promises.writeFile(path.join(uploadsDir, filename), assetBuffer);
-    return `/uploads/${filename}`;
+    return toImageUrl(null, `/uploads/${filename}`);
   }
 
   if (contentType.includes("text/html") && depth < 2) {

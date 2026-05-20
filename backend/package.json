@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
+    "test": "node --test",
     "seed": "node seeder.js",
     "seed:products": "node scripts/replaceProducts.js",
     "backfill:ai-events": "node scripts/backfillAIEventSnapshots.js",

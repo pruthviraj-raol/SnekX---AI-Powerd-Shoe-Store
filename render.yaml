@@ -16,6 +16,10 @@ services:
         value: https://snek-x-ai-powerd-shoe-store.vercel.app
       - key: AI_SERVICE_URL
         value: https://snekx-ai-service.onrender.com
+      - key: BACKEND_PUBLIC_URL
+        value: https://snekx-backend.onrender.com
+      - key: UPLOADS_DIR
+        value: /opt/render/project/src/backend/uploads
       - key: JWT_EXPIRES_IN
         value: 7d
       - key: MONGODB_URI
