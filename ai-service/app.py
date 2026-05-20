@@ -34,7 +34,7 @@ chatbot_service = ChatbotIntentService()
 _outfit_predictor = None
 
 
-def _get_outfit_predictor():
+def get_predictor():
     global _outfit_predictor
     if _outfit_predictor is None:
         started_at = time.perf_counter()
@@ -46,6 +46,10 @@ def _get_outfit_predictor():
         duration_ms = (time.perf_counter() - started_at) * 1000
         print(f"[ai-service] OutfitPredictor load success in {duration_ms:.2f} ms.", flush=True)
     return _outfit_predictor
+
+
+def _get_outfit_predictor():
+    return get_predictor()
 
 
 def _is_image_model_loaded():
@@ -79,6 +83,25 @@ def ai_health_check():
             "memoryOptimized": True,
         }
     )
+
+
+@app.route("/debug/model")
+def debug_model():
+    try:
+        predictor = get_predictor()
+        predictor.load_model()
+        return jsonify(
+            {
+                "loaded": predictor is not None,
+            }
+        )
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify(
+            {
+                "error": str(e),
+            }
+        ), 500
 
 
 @app.post("/chat")

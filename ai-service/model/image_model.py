@@ -11,6 +11,7 @@ Key optimizations:
 """
 
 import gc
+import os
 import threading
 import time
 import traceback
@@ -24,7 +25,10 @@ from sklearn.cluster import KMeans
 # ── Lazy-loaded globals ──
 _clip_model = None
 _clip_processor = None
+_clip_dtype = None
 _load_lock = threading.Lock()
+MODEL_NAME = "openai/clip-vit-base-patch32"
+HF_CACHE_DIR = "/tmp/huggingface"
 
 # ── Style labels for CLIP zero-shot classification ──
 STYLE_LABELS = [
@@ -39,7 +43,7 @@ STYLE_LABELS = [
 
 def _get_clip():
     """Return (model, processor), loading on first call."""
-    global _clip_model, _clip_processor
+    global _clip_model, _clip_processor, _clip_dtype
 
     if _clip_model is not None:
         return _clip_model, _clip_processor
@@ -49,39 +53,54 @@ def _get_clip():
             return _clip_model, _clip_processor
 
         started_at = time.perf_counter()
+        print("STARTING CLIP LOAD", flush=True)
         print("[ai-service] CLIP model load start.", flush=True)
+        os.environ["HF_HOME"] = HF_CACHE_DIR
+        os.environ["TRANSFORMERS_CACHE"] = HF_CACHE_DIR
+        os.makedirs(HF_CACHE_DIR, exist_ok=True)
 
         try:
             import torch
             from transformers import CLIPModel, CLIPProcessor
 
             torch.set_num_threads(1)
+            model_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+            if model_dtype == torch.float32:
+                print("[ai-service] CPU environment detected; loading CLIP with float32 to avoid CPU float16 failures.", flush=True)
 
             _clip_processor = CLIPProcessor.from_pretrained(
-                "openai/clip-vit-base-patch32",
+                MODEL_NAME,
+                cache_dir=HF_CACHE_DIR,
             )
-            _clip_model = CLIPModel.from_pretrained(
-                "openai/clip-vit-base-patch32",
-                torch_dtype=torch.float16,
+            model = CLIPModel.from_pretrained(
+                MODEL_NAME,
+                torch_dtype=model_dtype,
                 low_cpu_mem_usage=True,
+                cache_dir=HF_CACHE_DIR,
             )
-            _clip_model.eval()
+            model.eval()
+            _clip_model = model
+            _clip_dtype = model_dtype
 
             gc.collect()
             duration_ms = (time.perf_counter() - started_at) * 1000
+            print("CLIP LOAD SUCCESS", flush=True)
             print(f"[ai-service] CLIP model load success in {duration_ms:.2f} ms.", flush=True)
         except MemoryError as exc:
             duration_ms = (time.perf_counter() - started_at) * 1000
+            print("CLIP LOAD FAILED:", str(exc), flush=True)
             print(f"[ai-service] CLIP model load memory failure after {duration_ms:.2f} ms: {exc}", flush=True)
             traceback.print_exc()
             raise
         except TimeoutError as exc:
             duration_ms = (time.perf_counter() - started_at) * 1000
+            print("CLIP LOAD FAILED:", str(exc), flush=True)
             print(f"[ai-service] CLIP model load timeout after {duration_ms:.2f} ms: {exc}", flush=True)
             traceback.print_exc()
             raise
         except Exception as exc:
             duration_ms = (time.perf_counter() - started_at) * 1000
+            print("CLIP LOAD FAILED:", str(exc), flush=True)
             message = str(exc).lower()
             if any(term in message for term in ["memory", "out of memory", "oom", "allocation"]):
                 print(f"[ai-service] CLIP model load memory-related failure after {duration_ms:.2f} ms: {exc}", flush=True)
@@ -132,9 +151,9 @@ def classify_style(image_pil):
             padding=True,
         )
 
-        # Cast pixel values to float16 to match model dtype.
+        # Cast pixel values to match the model dtype.
         if "pixel_values" in inputs:
-            inputs["pixel_values"] = inputs["pixel_values"].to(torch.float16)
+            inputs["pixel_values"] = inputs["pixel_values"].to(_clip_dtype or torch.float32)
 
         with torch.inference_mode():
             outputs = model(**inputs)
@@ -237,6 +256,10 @@ def map_category(style, filename):
 # MAIN CLASS
 # -------------------------------
 class OutfitPredictor:
+
+    def load_model(self):
+        _get_clip()
+        return self
 
     def predict_from_bytes(self, image_bytes, filename=""):
         started_at = time.perf_counter()
