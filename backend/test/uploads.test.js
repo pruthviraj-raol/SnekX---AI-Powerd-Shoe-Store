@@ -3,8 +3,10 @@ const fs = require("node:fs/promises");
 const http = require("node:http");
 const path = require("node:path");
 const test = require("node:test");
+const { PassThrough } = require("node:stream");
 const express = require("express");
 
+const cloudinary = require("../config/cloudinary");
 const upload = require("../middleware/uploadMiddleware");
 const { app } = require("../server");
 const { toImageUrl } = require("../services/requestParserService");
@@ -28,10 +30,91 @@ const close = (server) =>
     server.close((error) => (error ? reject(error) : resolve()));
   });
 
-test("multer image uploads are saved with a browser-renderable extension", async () => {
+const withCloudinaryEnv = async (callback) => {
+  const previousEnv = {
+    CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
+    CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
+    CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
+  };
+
+  process.env.CLOUDINARY_CLOUD_NAME = "test-cloud";
+  process.env.CLOUDINARY_API_KEY = "test-key";
+  process.env.CLOUDINARY_API_SECRET = "test-secret";
+
+  try {
+    await callback();
+  } finally {
+    Object.entries(previousEnv).forEach(([key, value]) => {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    });
+  }
+};
+
+test("multer image uploads are sent to Cloudinary with a browser-renderable format", async () => {
+  const originalUploadStream = cloudinary.uploader.upload_stream;
+  let uploadedOptions = null;
+
+  cloudinary.uploader.upload_stream = (options, callback) => {
+    uploadedOptions = options;
+    const stream = new PassThrough();
+    stream.on("finish", () => {
+      callback(null, {
+        secure_url: `https://res.cloudinary.com/test-cloud/image/upload/${options.public_id}.${options.format}`,
+        bytes: pngBytes.length,
+        public_id: options.public_id,
+      });
+    });
+    return stream;
+  };
+
   const uploadApp = express();
   uploadApp.post("/upload", upload.single("image"), (req, res) => {
     res.json({ filename: req.file.filename, path: req.file.path });
+  });
+
+  const server = http.createServer(uploadApp);
+  const baseUrl = await listen(server);
+
+  try {
+    await withCloudinaryEnv(async () => {
+      const formData = new FormData();
+      formData.append("image", new Blob([pngBytes], { type: "image/png" }), "shoe-photo.png");
+
+      const response = await fetch(`${baseUrl}/upload`, {
+        method: "POST",
+        body: formData,
+      });
+      const body = await response.json();
+
+      assert.equal(response.status, 200);
+      assert.match(body.filename, /^image-\d+$/);
+      assert.match(body.path, /^https:\/\/res\.cloudinary\.com\/test-cloud\/image\/upload\/image-\d+\.png$/);
+      assert.equal(uploadedOptions.format, "png");
+    });
+  } finally {
+    cloudinary.uploader.upload_stream = originalUploadStream;
+    await close(server);
+  }
+});
+
+test("image uploads return a clear error when Cloudinary config is missing", async () => {
+  const previousEnv = {
+    CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
+    CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
+    CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
+  };
+
+  delete process.env.CLOUDINARY_CLOUD_NAME;
+  delete process.env.CLOUDINARY_API_KEY;
+  delete process.env.CLOUDINARY_API_SECRET;
+
+  const uploadApp = express();
+  uploadApp.post("/upload", upload.single("image"), (_req, res) => {
+    res.json({ success: true });
   });
 
   const server = http.createServer(uploadApp);
@@ -47,10 +130,19 @@ test("multer image uploads are saved with a browser-renderable extension", async
     });
     const body = await response.json();
 
-    assert.equal(response.status, 200);
-    assert.match(body.filename, /^image-\d+\.png$/);
-    await fs.rm(body.path, { force: true });
+    assert.equal(response.status, 500);
+    assert.deepEqual(body, {
+      success: false,
+      message: "Cloudinary configuration is missing",
+    });
   } finally {
+    Object.entries(previousEnv).forEach(([key, value]) => {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    });
     await close(server);
   }
 });

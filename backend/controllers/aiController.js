@@ -174,8 +174,27 @@ const STRICT_CATEGORY_ALLOWED_TYPES = {
   ethnic: ["slip-on", "loafers", "sandals"],
 };
 
+const isRemoteUploadPath = (filePath = "") => /^https?:\/\//i.test(filePath);
+
+const getUploadedImageBuffer = async (file) => {
+  if (file?.buffer) {
+    return file.buffer;
+  }
+
+  if (isRemoteUploadPath(file?.path)) {
+    const response = await axios.get(file.path, {
+      responseType: "arraybuffer",
+      timeout: 10000,
+    });
+
+    return Buffer.from(response.data);
+  }
+
+  return fs.promises.readFile(file.path);
+};
+
 const cleanupUpload = (filePath) => {
-  if (filePath && fs.existsSync(filePath)) {
+  if (filePath && !isRemoteUploadPath(filePath) && fs.existsSync(filePath)) {
     fs.unlink(filePath, () => {});
   }
 };
@@ -1531,8 +1550,9 @@ const fetchPythonChatResponse = async (message) => {
 };
 
 const fetchPythonOutfitPrediction = async (file) => {
+  const imageBuffer = await getUploadedImageBuffer(file);
   const form = new FormData();
-  form.append("image", fs.createReadStream(file.path), {
+  form.append("image", imageBuffer, {
     filename: file.originalname,
     contentType: file.mimetype,
   });
@@ -1896,7 +1916,7 @@ const outfitRecommendation = asyncHandler(async (req, res) => {
     usedFallback = true;
     console.error(`Python outfit service failed: ${error.message}`);
 
-    const fallbackColor = await detectDominantColor(req.file.path);
+    const fallbackColor = await detectDominantColor(await getUploadedImageBuffer(req.file));
     detectedColor = normalizeOutfitColor(fallbackColor.color);
     rgb = fallbackColor.rgb;
     const fallbackCategory = normalizeSemanticOutfitCategory(normalizeDetectedClothingType("", req.file.originalname));
