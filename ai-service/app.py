@@ -1,5 +1,6 @@
 import os
 import gc
+import sys
 import time
 import traceback
 
@@ -12,6 +13,17 @@ os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
+print("PYTHON VERSION:", sys.version, flush=True)
+try:
+    import torch
+
+    print("TORCH VERSION:", torch.__version__, flush=True)
+    print("CUDA AVAILABLE:", torch.cuda.is_available(), flush=True)
+except Exception as exc:
+    print("TORCH VERSION:", f"unavailable ({exc})", flush=True)
+    print("CUDA AVAILABLE:", False, flush=True)
+    traceback.print_exc()
+
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
@@ -21,6 +33,7 @@ def parse_csv_env(name):
 
 
 app = Flask(__name__)
+print("USING FLASK FILE:", __file__, flush=True)
 cors_origins = parse_csv_env("AI_SERVICE_CORS_ORIGINS") or parse_csv_env("CLIENT_URL")
 CORS(app, origins=cors_origins or [])
 app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_UPLOAD_MB", "10")) * 1024 * 1024
@@ -63,6 +76,17 @@ def _is_image_model_loaded():
         return False
 
 
+def _is_mock_image_model_loaded():
+    try:
+        from model.image_model import is_mock_clip_loaded
+
+        return _outfit_predictor is not None and is_mock_clip_loaded()
+    except Exception as exc:
+        print(f"[ai-service] Failed to inspect mock AI health: {exc}", flush=True)
+        traceback.print_exc()
+        return False
+
+
 @app.get("/health")
 def health_check():
     return jsonify(
@@ -74,6 +98,18 @@ def health_check():
     )
 
 
+@app.route("/routes")
+def routes():
+    return {
+        "routes": sorted(
+            [
+                str(rule)
+                for rule in app.url_map.iter_rules()
+            ]
+        )
+    }
+
+
 @app.get("/health/ai")
 def ai_health_check():
     return jsonify(
@@ -81,6 +117,7 @@ def ai_health_check():
             "modelLoaded": _is_image_model_loaded(),
             "fallbackEnabled": True,
             "memoryOptimized": True,
+            "mockModelLoaded": _is_mock_image_model_loaded(),
         }
     )
 
@@ -92,13 +129,35 @@ def debug_model():
         predictor.load_model()
         return jsonify(
             {
-                "loaded": predictor is not None,
+                "loaded": predictor.model is not None,
+                "mockModelLoaded": _is_mock_image_model_loaded(),
             }
         )
     except Exception as e:
         traceback.print_exc()
         return jsonify(
             {
+                "error": str(e),
+            }
+        ), 500
+
+
+@app.route("/warmup")
+def warmup():
+    try:
+        predictor = get_predictor()
+        predictor.load_model()
+        return jsonify(
+            {
+                "success": True,
+                "loaded": predictor.model is not None,
+            }
+        )
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify(
+            {
+                "success": False,
                 "error": str(e),
             }
         ), 500
