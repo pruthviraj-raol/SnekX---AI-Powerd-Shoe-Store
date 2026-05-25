@@ -27,6 +27,8 @@ except Exception as exc:
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
+SERVICE_VERSION = "2026-05-25-lightweight-ai-warmup"
+
 
 def parse_csv_env(name):
     return [value.strip().rstrip("/") for value in os.getenv(name, "").split(",") if value.strip()]
@@ -93,6 +95,7 @@ def health_check():
         {
             "status": "ok",
             "service": "snekx-ai-service",
+            "version": SERVICE_VERSION,
             "endpoints": ["/chat", "/predict-outfit"],
         }
     )
