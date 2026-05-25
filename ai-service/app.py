@@ -144,23 +144,14 @@ def debug_model():
 
 @app.route("/warmup")
 def warmup():
-    try:
-        predictor = get_predictor()
-        predictor.load_model()
-        return jsonify(
-            {
-                "success": True,
-                "loaded": predictor.model is not None,
-            }
-        )
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify(
-            {
-                "success": False,
-                "error": str(e),
-            }
-        ), 500
+    return jsonify(
+        {
+            "success": True,
+            "service": "snekx-ai-service",
+            "loaded": _is_image_model_loaded(),
+            "mockModelLoaded": _is_mock_image_model_loaded(),
+        }
+    )
 
 
 @app.post("/chat")
