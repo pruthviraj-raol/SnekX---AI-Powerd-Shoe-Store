@@ -31,6 +31,7 @@ _load_lock = threading.Lock()
 MODEL_NAME = "openai/clip-vit-base-patch32"
 HF_CACHE_DIR = "/tmp/huggingface"
 MOCK_STYLE = "casual t shirt jeans outfit"
+ENABLE_HEAVY_CLIP = os.getenv("AI_ENABLE_HEAVY_CLIP", "false").lower() == "true"
 
 
 class MockClipModel:
@@ -79,6 +80,9 @@ def _get_clip():
             gc.collect()
             print("RAM AFTER LOAD:", psutil.virtual_memory(), flush=True)
             return _clip_model, _clip_processor
+
+        if not ENABLE_HEAVY_CLIP:
+            return enable_mock_clip(RuntimeError("Real CLIP loading is disabled. Set AI_ENABLE_HEAVY_CLIP=true to enable it."))
 
         try:
             import torch
@@ -168,8 +172,6 @@ def extract_person_region(image_pil):
 # CLIP STYLE
 # -------------------------------
 def classify_style(image_pil):
-    import torch
-
     started_at = time.perf_counter()
     print("[ai-service] CLIP inference start.", flush=True)
     model, processor = _get_clip()
@@ -188,6 +190,8 @@ def classify_style(image_pil):
 
         # Cast pixel values to match the model dtype.
         if "pixel_values" in inputs:
+            import torch
+
             inputs["pixel_values"] = inputs["pixel_values"].to(_clip_dtype or torch.float32)
 
         with torch.inference_mode():
