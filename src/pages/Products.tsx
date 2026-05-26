@@ -4,6 +4,7 @@ import { SlidersHorizontal, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import UserLayout from "@/components/layout/UserLayout";
 import ProductCard from "@/components/ProductCard";
+import ProductSkeleton from "@/components/ui/ProductSkeleton";
 import { apiRequest, getApiErrorMessage } from "@/lib/api";
 import { normalizeProduct } from "@/lib/shop";
 import { useAuth } from "@/context/AuthContext";
@@ -352,9 +353,7 @@ const Products = () => {
 
           <div className="flex-1">
             {isLoading ? (
-              <div className="text-center py-20 text-muted-foreground">
-                <p className="text-lg">Loading shoes...</p>
-              </div>
+              <ProductSkeleton count={9} className="md:grid-cols-3" />
             ) : error ? (
               <div className="text-center py-20 text-muted-foreground">
                 <p className="text-lg">{error}</p>

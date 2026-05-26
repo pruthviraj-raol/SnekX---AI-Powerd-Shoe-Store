@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { apiRequest, getApiErrorMessage } from "@/lib/api";
 import { normalizeProduct } from "@/lib/shop";
+import ProductSkeleton from "@/components/ui/ProductSkeleton";
 import type { Product } from "@/types/shop";
 import { PRODUCT_IMAGE_PLACEHOLDER, getProductImage } from "@/utils/getProductImage";
 
@@ -243,7 +244,7 @@ const AdminProducts = () => {
       </div>
 
       {isLoading ? (
-        <div className="bg-card rounded-2xl border border-border p-8 text-center text-muted-foreground">Loading products...</div>
+        <ProductSkeleton count={6} className="md:grid-cols-3" />
       ) : error ? (
         <div className="bg-card rounded-2xl border border-border p-8 text-center text-muted-foreground">{error}</div>
       ) : (

@@ -1,8 +1,10 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Camera, RefreshCw, ShoppingBag, Sparkles, Upload, X } from "lucide-react";
+import { Camera, ShoppingBag, Sparkles, Upload, X } from "lucide-react";
 import UserLayout from "@/components/layout/UserLayout";
+import AILoader from "@/components/ui/AILoader";
+import Loader from "@/components/ui/Loader";
 import { useAuth } from "@/context/AuthContext";
 import { apiRequest, getApiErrorMessage } from "@/lib/api";
 import { normalizeProduct } from "@/lib/shop";
@@ -141,6 +143,7 @@ const OutfitRecommendationPage = () => {
 
   return (
     <UserLayout>
+      <AILoader active={analyzing} />
       <section className="py-20">
         <div className="container mx-auto px-4">
           <motion.div
@@ -218,7 +221,8 @@ const OutfitRecommendationPage = () => {
                           </p>
                           <button
                             onClick={() => void analyzeOutfit()}
-                            className="bg-primary text-primary-foreground font-semibold py-3 px-6 rounded-xl flex items-center gap-2 hover:brightness-110 transition-all w-fit"
+                            disabled={analyzing}
+                            className="bg-primary text-primary-foreground font-semibold py-3 px-6 rounded-xl flex items-center gap-2 hover:brightness-110 transition-all w-fit disabled:cursor-not-allowed disabled:opacity-70"
                           >
                             <Sparkles className="w-4 h-4" /> Analyze Outfit
                           </button>
@@ -227,19 +231,11 @@ const OutfitRecommendationPage = () => {
                       )}
 
                       {analyzing && (
-                        <div className="text-center">
-                          <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
-                            className="w-12 h-12 mx-auto mb-4"
-                          >
-                            <RefreshCw className="w-12 h-12 text-primary" />
-                          </motion.div>
-                          <h3 className="font-heading text-lg font-semibold mb-1">Analyzing Your Outfit...</h3>
-                          <p className="text-muted-foreground text-sm">
-                            Detecting clothing type, dominant colors, and matching shoe styles.
-                          </p>
-                        </div>
+                        <Loader
+                          size="sm"
+                          text="Analyzing your outfit..."
+                          subtext="The full AI stylist overlay is matching your look now."
+                        />
                       )}
 
                       {results && (

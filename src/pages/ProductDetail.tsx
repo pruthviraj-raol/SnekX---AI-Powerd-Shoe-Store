@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Star, Heart, ShoppingBag, ArrowLeft, Truck, Shield, RotateCcw } from "lucide-react";
 import UserLayout from "@/components/layout/UserLayout";
 import ProductCard from "@/components/ProductCard";
+import ProductSkeleton from "@/components/ui/ProductSkeleton";
 import { apiRequest, getApiErrorMessage } from "@/lib/api";
 import { normalizeProduct } from "@/lib/shop";
 import { useCart } from "@/context/CartContext";
@@ -123,7 +124,27 @@ const ProductDetail = () => {
   if (isLoading) {
     return (
       <UserLayout>
-        <div className="container mx-auto px-4 py-20 text-center text-muted-foreground">Loading product...</div>
+        <div className="container mx-auto px-4 py-8">
+          <div className="grid gap-8 md:grid-cols-2">
+            <div className="aspect-square rounded-2xl bg-card shimmer" />
+            <div className="space-y-5 py-4">
+              <div className="h-4 w-24 rounded-full bg-muted shimmer" />
+              <div className="h-10 w-4/5 rounded-xl bg-muted shimmer" />
+              <div className="h-5 w-40 rounded-full bg-muted shimmer" />
+              <div className="h-10 w-36 rounded-xl bg-muted shimmer" />
+              <div className="h-24 rounded-xl bg-muted shimmer" />
+              <div className="flex gap-2">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <div key={index} className="h-12 w-12 rounded-xl bg-muted shimmer" />
+                ))}
+              </div>
+              <div className="h-12 rounded-xl bg-muted shimmer" />
+            </div>
+          </div>
+          <div className="mt-16">
+            <ProductSkeleton count={4} />
+          </div>
+        </div>
       </UserLayout>
     );
   }

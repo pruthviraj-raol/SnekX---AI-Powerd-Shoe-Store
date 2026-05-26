@@ -1,14 +1,15 @@
 import { Navigate } from "react-router-dom";
 import type { ReactNode } from "react";
 import { useAuth } from "@/context/AuthContext";
+import Loader from "@/components/ui/Loader";
 
 const AdminRoute = ({ children }: { children: ReactNode }) => {
   const { user, isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4 text-sm text-muted-foreground">
-        Loading admin access...
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <Loader text="Loading SnekX..." subtext="Verifying admin access." />
       </div>
     );
   }

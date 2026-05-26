@@ -6,6 +6,7 @@ import { useTheme } from "@/context/ThemeContext";
 import heroImageDark from "@/assets/hero-shoe.jpg";
 import heroImageLight from "@/assets/hero-shoe-light.jpg";
 import ProductCard from "@/components/ProductCard";
+import ProductSkeleton from "@/components/ui/ProductSkeleton";
 import UserLayout from "@/components/layout/UserLayout";
 import { apiRequest, getApiErrorMessage } from "@/lib/api";
 import { normalizeProduct } from "@/lib/shop";
@@ -140,7 +141,7 @@ const Index = () => {
           </Link>
         </div>
         {isLoading ? (
-          <div className="text-center py-16 text-muted-foreground">Loading trending products...</div>
+          <ProductSkeleton count={4} />
         ) : error ? (
           <div className="text-center py-16 text-muted-foreground">{error}</div>
         ) : (
@@ -182,7 +183,7 @@ const Index = () => {
           </Link>
         </div>
         {isLoading ? (
-          <div className="text-center py-16 text-muted-foreground">Loading new arrivals...</div>
+          <ProductSkeleton count={4} />
         ) : error ? (
           <div className="text-center py-16 text-muted-foreground">{error}</div>
         ) : (
