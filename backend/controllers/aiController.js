@@ -1913,6 +1913,7 @@ const outfitRecommendation = asyncHandler(async (req, res) => {
   let recommendedProducts = [];
   let hasStrongMatches = true;
   let usedFallback = false;
+  let fallbackReason = null;
 
   try {
     const aiResponse = await fetchPythonOutfitPrediction(req.file);
@@ -1932,6 +1933,12 @@ const outfitRecommendation = asyncHandler(async (req, res) => {
     hasStrongMatches = outfitRecommendationResult.hasStrongMatches;
   } catch (error) {
     usedFallback = true;
+    fallbackReason = {
+      message: error.message,
+      code: error.code || null,
+      status: error.response?.status || null,
+      response: error.response?.data || null,
+    };
     console.error(`Python outfit service failed: ${error.message}`);
 
     const fallbackColor = await detectDominantColor(await getUploadedImageBuffer(req.file));
@@ -1983,6 +1990,7 @@ const outfitRecommendation = asyncHandler(async (req, res) => {
     analysis,
     products: recommendedProducts,
     fallback: usedFallback,
+    fallbackReason: usedFallback ? fallbackReason : null,
   });
 });
 
