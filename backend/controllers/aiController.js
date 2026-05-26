@@ -1,6 +1,7 @@
 const fs = require("fs");
 const axios = require("axios");
 const FormData = require("form-data");
+const sharp = require("sharp");
 const ChatQuery = require("../models/ChatQuery");
 const AIEvent = require("../models/AIEvent");
 const Product = require("../models/Product");
@@ -188,6 +189,29 @@ const getUploadedImageBuffer = async (file) => {
   }
 
   return fs.promises.readFile(file.path);
+};
+
+const prepareAiImageBuffer = async (file) => {
+  const imageBuffer = await getUploadedImageBuffer(file);
+
+  try {
+    return sharp(imageBuffer)
+      .rotate()
+      .resize({
+        width: 512,
+        height: 512,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({
+        quality: 82,
+        mozjpeg: true,
+      })
+      .toBuffer();
+  } catch (error) {
+    console.warn(`AI image resize failed, sending original upload: ${error.message}`);
+    return imageBuffer;
+  }
 };
 
 const cleanupUpload = (filePath) => {
@@ -1566,11 +1590,11 @@ const fetchPythonChatResponse = async (message) => {
 };
 
 const fetchPythonOutfitPrediction = async (file) => {
-  const imageBuffer = await getUploadedImageBuffer(file);
+  const imageBuffer = await prepareAiImageBuffer(file);
   const form = new FormData();
   form.append("image", imageBuffer, {
-    filename: file.originalname,
-    contentType: file.mimetype,
+    filename: `${file.originalname || "outfit"}.jpg`,
+    contentType: "image/jpeg",
   });
 
   const axiosConfig = {
