@@ -1961,7 +1961,6 @@ const outfitRecommendation = asyncHandler(async (req, res) => {
       message: error.message,
       code: error.code || null,
       status: error.response?.status || null,
-      response: error.response?.data || null,
     };
     console.error(`Python outfit service failed: ${error.message}`);
 
