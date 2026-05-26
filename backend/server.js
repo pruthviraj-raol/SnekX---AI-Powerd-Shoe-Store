@@ -23,6 +23,7 @@ const { uploadsDir } = require("./services/uploadPathService");
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
 const PRODUCTION_CLIENT_URL = "https://snek-x-ai-powerd-shoe-store.vercel.app";
+const BACKEND_VERSION = "2026-05-26-ai-service-url-fallback";
 const isProduction = process.env.NODE_ENV === "production";
 let serverInstance = null;
 const IMAGE_CONTENT_TYPES = {
@@ -138,6 +139,8 @@ app.get("/api/health", (_req, res) => {
   res.json({
     success: true,
     message: "SnekX backend is running.",
+    version: BACKEND_VERSION,
+    aiServiceConfigured: Boolean(process.env.AI_SERVICE_URL),
   });
 });
 
