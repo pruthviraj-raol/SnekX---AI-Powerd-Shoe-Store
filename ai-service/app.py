@@ -27,7 +27,7 @@ except Exception as exc:
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-SERVICE_VERSION = "2026-05-25-lightweight-ai-warmup"
+SERVICE_VERSION = "2026-05-26-lightweight-style-classifier"
 
 
 def parse_csv_env(name):

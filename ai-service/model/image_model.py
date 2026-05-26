@@ -32,6 +32,39 @@ MODEL_NAME = "openai/clip-vit-base-patch32"
 HF_CACHE_DIR = "/tmp/huggingface"
 MOCK_STYLE = "casual t shirt jeans outfit"
 ENABLE_HEAVY_CLIP = os.getenv("AI_ENABLE_HEAVY_CLIP", "false").lower() == "true"
+STYLE_BY_CATEGORY = {
+    "formal": "formal business suit outfit",
+    "casual": "casual t shirt jeans outfit",
+    "sports": "sports gym workout outfit",
+    "ethnic": "indian ethnic kurta sherwani outfit",
+    "streetwear": "streetwear hoodie outfit",
+    "party": "party wear stylish outfit",
+}
+STYLE_KEYWORDS = {
+    "formal": [
+        "formal", "business", "office", "suit", "blazer", "shirt", "tie",
+        "trouser", "trousers", "pants", "dress-pant", "dresspant",
+    ],
+    "sports": [
+        "sport", "sports", "gym", "workout", "fitness", "running", "run",
+        "athletic", "jersey", "track", "training", "yoga",
+    ],
+    "ethnic": [
+        "ethnic", "traditional", "kurta", "sherwani", "saree", "sari",
+        "lehenga", "salwar", "wedding", "festive",
+    ],
+    "streetwear": [
+        "street", "streetwear", "hoodie", "cargo", "oversized", "denim",
+        "jacket", "skate",
+    ],
+    "party": [
+        "party", "club", "night", "sequin", "gown", "cocktail", "stylish",
+    ],
+    "casual": [
+        "casual", "jeans", "tshirt", "t-shirt", "tee", "polo", "daily",
+        "regular",
+    ],
+}
 
 
 class MockClipModel:
@@ -168,18 +201,85 @@ def extract_person_region(image_pil):
     return image_bgr[int(h * 0.15):int(h * 0.85), int(w * 0.2):int(w * 0.8)]
 
 
+def _keyword_style_scores(filename):
+    name = filename.lower().replace("_", " ").replace("-", " ")
+    scores = {category: 0.0 for category in STYLE_BY_CATEGORY}
+
+    for category, keywords in STYLE_KEYWORDS.items():
+        for keyword in keywords:
+            if keyword in name:
+                scores[category] += 3.0
+
+    return scores
+
+
+def _image_style_scores(image_pil):
+    region = extract_person_region(image_pil)
+    region = cv2.resize(region, (160, 160))
+    hsv = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
+    gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
+
+    saturation = float(np.mean(hsv[:, :, 1]) / 255)
+    brightness = float(np.mean(hsv[:, :, 2]) / 255)
+    dark_share = float(np.mean(gray < 65))
+    light_share = float(np.mean(gray > 190))
+    edges = cv2.Canny(gray, 80, 160)
+    edge_density = float(np.mean(edges > 0))
+    b, g, r = [float(value) / 255 for value in np.mean(region, axis=(0, 1))]
+
+    scores = {category: 0.0 for category in STYLE_BY_CATEGORY}
+    scores["casual"] += 0.8
+
+    if dark_share > 0.28 and saturation < 0.35:
+        scores["formal"] += 1.6
+    if light_share > 0.35 and saturation < 0.28:
+        scores["formal"] += 0.7
+    if saturation > 0.42 and brightness > 0.45:
+        scores["sports"] += 1.0
+        scores["ethnic"] += 0.7
+    if edge_density > 0.095:
+        scores["sports"] += 0.5
+        scores["streetwear"] += 0.5
+    if dark_share > 0.20 and saturation > 0.35:
+        scores["party"] += 0.8
+    if b > r + 0.08 and b > g + 0.04:
+        scores["streetwear"] += 0.8
+        scores["casual"] += 0.5
+    if r > 0.38 and g > 0.28 and saturation > 0.35:
+        scores["ethnic"] += 0.8
+    if brightness > 0.58 and 0.18 < saturation < 0.45:
+        scores["casual"] += 0.6
+
+    return scores
+
+
+def classify_lightweight_style(image_pil, filename=""):
+    scores = _keyword_style_scores(filename)
+    image_scores = _image_style_scores(image_pil)
+
+    for category, score in image_scores.items():
+        scores[category] += score
+
+    best_category, best_score = max(scores.items(), key=lambda item: item[1])
+    if best_score < 1.2:
+        best_category = "casual"
+
+    print("[ai-service] Lightweight style scores:", scores, flush=True)
+    return STYLE_BY_CATEGORY[best_category]
+
+
 # -------------------------------
 # CLIP STYLE
 # -------------------------------
-def classify_style(image_pil):
+def classify_style(image_pil, filename=""):
     started_at = time.perf_counter()
     print("[ai-service] CLIP inference start.", flush=True)
     model, processor = _get_clip()
 
     try:
         if isinstance(model, MockClipModel):
-            print("[ai-service] MOCK CLIP inference active.", flush=True)
-            return MOCK_STYLE
+            print("[ai-service] Lightweight style inference active.", flush=True)
+            return classify_lightweight_style(image_pil, filename)
 
         inputs = processor(
             text=STYLE_LABELS,
@@ -272,13 +372,13 @@ def detect_color(image_pil):
 def map_category(style, filename):
     name = filename.lower()
 
-    if "kurta" in name or "sherwani" in name:
+    if any(term in name for term in ["kurta", "sherwani", "saree", "sari", "lehenga", "ethnic", "traditional"]):
         return "ethnic"
 
-    if "suit" in name or "blazer" in name:
+    if any(term in name for term in ["suit", "blazer", "formal", "office", "business"]):
         return "formal"
 
-    if "gym" in name or "sport" in name:
+    if any(term in name for term in ["gym", "sport", "sports", "workout", "running", "athletic", "training"]):
         return "sports"
 
     if "formal" in style:
@@ -310,7 +410,7 @@ class OutfitPredictor:
         try:
             image = Image.open(BytesIO(image_bytes)).convert("RGB")
 
-            style = classify_style(image)
+            style = classify_style(image, filename)
             print("STYLE:", style, flush=True)
 
             color = detect_color(image)
