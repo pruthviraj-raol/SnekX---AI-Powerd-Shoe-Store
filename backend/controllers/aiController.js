@@ -13,14 +13,11 @@ const {
   buildChatbotReply,
 } = require("../services/aiService");
 
+const DEFAULT_AI_SERVICE_URL = "https://snekx-ai-service.onrender.com";
 const normalizeAiServiceUrl = (value = "") => String(value).trim().replace(/\/$/, "");
 
 const getAiServiceUrl = (pathname) => {
-  const aiServiceUrl = normalizeAiServiceUrl(process.env.AI_SERVICE_URL);
-
-  if (!aiServiceUrl) {
-    throw new Error("AI_SERVICE_URL is not configured.");
-  }
+  const aiServiceUrl = normalizeAiServiceUrl(process.env.AI_SERVICE_URL || DEFAULT_AI_SERVICE_URL);
 
   return `${aiServiceUrl}${pathname}`;
 };
@@ -1577,7 +1574,7 @@ const fetchPythonOutfitPrediction = async (file) => {
   });
 
   const axiosConfig = {
-    timeout: 10000,
+    timeout: 30000,
     headers: {
       ...form.getHeaders(),
       Accept: "application/json",
